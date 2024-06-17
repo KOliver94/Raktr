@@ -44,7 +44,7 @@ dependencies {
     compile 'org.projectlombok:lombok:1.18.28'
     annotationProcessor 'org.projectlombok:lombok:1.18.28'
 
-    implementation 'com.itextpdf:itext7-core:7.1.10'
+    implementation 'com.itextpdf:itext7-core:7.2.6'
 
     testCompile group: 'com.h2database', name: 'h2', version: '1.4.200'
 
