@@ -11,7 +11,7 @@ services:
     build:
       context: "./frontend"
     ports:
-    - "127.0.0.1:80:80"
+    - "127.0.0.1:4200:80"
     depends_on:
       - backend
   db:
@@ -21,3 +21,11 @@ services:
       POSTGRES_DB: "raktrdb"
     ports:
     - "127.0.0.1:5432:5432"
+  proxy:
+    build:
+      context: "./proxy"
+    ports:
+      - "127.0.0.1:80:80"
+    depends_on:
+      - backend
+      - frontend
