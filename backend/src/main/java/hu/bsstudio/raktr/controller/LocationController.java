@@ -3,7 +3,7 @@ package hu.bsstudio.raktr.controller;
 import hu.bsstudio.raktr.model.Location;
 import hu.bsstudio.raktr.service.LocationService;
 import java.util.List;
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

@@ -1,25 +1,24 @@
 package hu.bsstudio.raktr.model;
 
-import static javax.persistence.CascadeType.REFRESH;
-import static javax.persistence.FetchType.EAGER;
-
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import java.util.List;
-import javax.persistence.Entity;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToMany;
-import javax.persistence.ManyToOne;
-import javax.persistence.PrimaryKeyJoinColumn;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
+import jakarta.persistence.Entity;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.PrimaryKeyJoinColumn;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.List;
+
+import static jakarta.persistence.CascadeType.REFRESH;
+import static jakarta.persistence.FetchType.EAGER;
 
 @EqualsAndHashCode(callSuper = true)
 @Entity
@@ -49,14 +48,14 @@ public class CompositeItem extends Scannable {
     @Override
     public String toString() {
         return "CompositeItem{"
-            + "id=" + id
-            + ", name='" + name + '\''
-            + ", barcode='" + barcode + '\''
-            + ", textIdentifier='" + textIdentifier + '\''
-            + ", public_rentable='" + isPublicRentable + "'"
-            + ", devices=" + devices
-            + ", location=" + location
-            + '}';
+                + "id=" + id
+                + ", name='" + name + '\''
+                + ", barcode='" + barcode + '\''
+                + ", textIdentifier='" + textIdentifier + '\''
+                + ", public_rentable='" + isPublicRentable + "'"
+                + ", devices=" + devices
+                + ", location=" + location
+                + '}';
     }
 
 }

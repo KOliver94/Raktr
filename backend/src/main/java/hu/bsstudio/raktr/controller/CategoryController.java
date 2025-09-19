@@ -4,7 +4,7 @@ import hu.bsstudio.raktr.model.Category;
 import hu.bsstudio.raktr.service.CategoryService;
 import java.util.List;
 import java.util.Optional;
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.annotation.Secured;

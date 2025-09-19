@@ -15,12 +15,6 @@ import hu.bsstudio.raktr.repository.DeviceRepository;
 import hu.bsstudio.raktr.repository.GeneralDataRepository;
 import hu.bsstudio.raktr.repository.RentItemRepository;
 import hu.bsstudio.raktr.repository.RentRepository;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.util.*;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +23,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import java.util.TreeMap;
 
 @Service
 @Slf4j
@@ -235,7 +237,7 @@ public class RentService {
         return Optional.of(savedRent);
     }
 
-    @SuppressWarnings( {"checkstyle:InnerAssignment", "checkstyle:AvoidInlineConditionals"})
+    @SuppressWarnings({"checkstyle:InnerAssignment", "checkstyle:AvoidInlineConditionals"})
     public final ResponseEntity<byte[]> getPdf(final Long rentId, final RentPdfRequest rentPdfRequest) throws IOException {
         Rent rentToGenerate = rentRepository.findById(rentId).orElse(null);
 
@@ -248,7 +250,7 @@ public class RentService {
 
         Optional<GeneralData> foundData;
         String groupName = (foundData = generalDataRepository.findById(GROUP_NAME_KEY)).isPresent()
-            ? foundData.get().getData() : "Budavári Schönherz Stúdió";
+                ? foundData.get().getData() : "Budavári Schönherz Stúdió";
         String groupLeaderName = (foundData = generalDataRepository.findById(GROUP_LEADER_NAME_KEY)).isPresent() ? foundData.get().getData() : "";
         String firstSignerName = (foundData = generalDataRepository.findById(FIRST_SIGNER_NAME_KEY)).isPresent() ? foundData.get().getData() : "";
         String firstSignerTitle = (foundData = generalDataRepository.findById(FIRST_SIGNER_TITLE_KEY)).isPresent() ? foundData.get().getData() : "";
@@ -256,19 +258,19 @@ public class RentService {
         String secondSignerTitle = (foundData = generalDataRepository.findById(SECOND_SIGNER_TITLE_KEY)).isPresent() ? foundData.get().getData() : "";
 
         RentPdfData rentPdfData = RentPdfData.builder()
-            .withTeamName(groupName)
-            .withTeamLeaderName(groupLeaderName)
-            .withFirstSignerName(firstSignerName)
-            .withFirstSignerTitle(firstSignerTitle)
-            .withSecondSignerName(secondSignerName)
-            .withSecondSignerTitle(secondSignerTitle)
-            .withOutDate(rentToGenerate.getOutDate())
-            .withBackDate(rentToGenerate.getExpBackDate())
-            .withFileName(fileName)
-            .withRenterName(rentPdfRequest.getRenterFullName())
-            .withRenterId(rentPdfRequest.getRenterId())
-            .withItems(new TreeMap<>())
-            .build();
+                .withTeamName(groupName)
+                .withTeamLeaderName(groupLeaderName)
+                .withFirstSignerName(firstSignerName)
+                .withFirstSignerTitle(firstSignerTitle)
+                .withSecondSignerName(secondSignerName)
+                .withSecondSignerTitle(secondSignerTitle)
+                .withOutDate(rentToGenerate.getOutDate())
+                .withBackDate(rentToGenerate.getExpBackDate())
+                .withFileName(fileName)
+                .withRenterName(rentPdfRequest.getRenterFullName())
+                .withRenterId(rentPdfRequest.getRenterId())
+                .withItems(new TreeMap<>())
+                .build();
 
         for (var item : rentToGenerate.getRentItems()) {
             String currentName = item.getScannable().getName();
@@ -278,13 +280,13 @@ public class RentService {
                 currAmount += item.getOutQuantity();
 
                 rentPdfData.getItems().replace(
-                    currentName,
-                    currAmount
+                        currentName,
+                        currAmount
                 );
             } else {
                 rentPdfData.getItems().put(
-                    currentName,
-                    item.getOutQuantity()
+                        currentName,
+                        item.getOutQuantity()
                 );
             }
         }
