@@ -7,7 +7,6 @@ import hu.bsstudio.raktr.service.UserDataService;
 import hu.bsstudio.raktr.service.UserRoleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.minidev.json.JSONArray;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -57,31 +55,31 @@ public class BssLoginJwtAuthenticationConverter implements Converter<Jwt, Collec
         }
     }
 
+    @SuppressWarnings("unchecked")
     private User setUserRoles(User user, Jwt jwt) {
-        JSONArray array = (JSONArray) jwt.getClaims().get("groups");
+        List<String> groups = (List<String>) jwt.getClaims().getOrDefault("groups", List.of());
 
-        for (Object role : array.stream()
-                .map(role -> role.toString().equals("Öregtag") ? "Stúdiós" : role.toString())
+        List<String> normalizedRoles = groups.stream()
+                .map(role -> role.equals("Öregtag") ? "Stúdiós" : role)
                 .distinct()
-                .toArray()) {
-            if(!roleCache.contains(role.toString())) {
-                UserRole foundRole = userRoleService.getRole(role.toString());
+                .toList();
 
-                if(foundRole == null) {
-                    log.info("Role not found, creating it: {}", role.toString());
-
-                    userRoleService.createRole(role.toString());
+        for (String role : normalizedRoles) {
+            if (!roleCache.contains(role)) {
+                UserRole foundRole = userRoleService.getRole(role);
+                if (foundRole == null) {
+                    log.info("Role not found, creating it: {}", role);
+                    userRoleService.createRole(role);
                 }
-
-                roleCache.add(role.toString());
+                roleCache.add(role);
             }
         }
 
-        Set<UserRole> userRoles = array.stream()
-                .map(role -> role.toString().equals("Öregtag") ? "Stúdiós" : role.toString())
+        Set<UserRole> userRoles = normalizedRoles.stream()
                 .map(userRoleService::getRole)
                 .filter(Objects::nonNull)
-                .collect(Collectors.toCollection(HashSet::new));
+                .collect(Collectors.toSet());
+
         return userDataService.setUserRoles(user, userRoles);
     }
 
