@@ -5,7 +5,6 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
 }
 
-
 group = "hu.bsstudio"
 version = "0.1.0"
 
@@ -34,11 +33,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("com.itextpdf:itext7-core:9.3.0")
 
-    compileOnly("org.projectlombok:lombok")
+    compileOnly("org.projectlombok:lombok:1.18.32")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
-    runtimeOnly("org.postgresql:postgresql")
+    runtimeOnly("org.postgresql:postgresql:42.7.0")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
-    annotationProcessor("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok:1.18.32")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
