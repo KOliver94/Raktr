@@ -1,5 +1,6 @@
 package hu.bsstudio.raktr.service;
 
+import hu.bsstudio.raktr.config.GeneralDataProperties;
 import hu.bsstudio.raktr.exception.NotAvailableQuantityException;
 import hu.bsstudio.raktr.exception.ObjectNotFoundException;
 import hu.bsstudio.raktr.model.Comment;
@@ -17,8 +18,6 @@ import hu.bsstudio.raktr.repository.RentItemRepository;
 import hu.bsstudio.raktr.repository.RentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,7 +33,6 @@ import java.util.TreeMap;
 
 @Service
 @Slf4j
-@PropertySource("classpath:generalData.properties")
 @RequiredArgsConstructor
 public class RentService {
 
@@ -43,18 +41,7 @@ public class RentService {
     private final DeviceRepository deviceRepository;
     private final GeneralDataRepository generalDataRepository;
     private final CommentRepository commentRepository;
-    @Value("${generalData.groupNameKey}")
-    private String GROUP_NAME_KEY;
-    @Value("${generalData.groupLeaderNameKey}")
-    private String GROUP_LEADER_NAME_KEY;
-    @Value("${generalData.firstSignerNameKey}")
-    private String FIRST_SIGNER_NAME_KEY;
-    @Value("${generalData.firstSignerTitleKey}")
-    private String FIRST_SIGNER_TITLE_KEY;
-    @Value("${generalData.secondSignerNameKey}")
-    private String SECOND_SIGNER_NAME_KEY;
-    @Value("${generalData.secondSignerTitleKey}")
-    private String SECOND_SIGNER_TITLE_KEY;
+    private final GeneralDataProperties generalDataProperties;
 
     @SuppressWarnings("checkstyle:DesignForExtension")
     public boolean checkIfAvailable(final RentItem deviceRentItem, final RentItem rentItemToUpdate) {
@@ -73,15 +60,12 @@ public class RentService {
     }
 
     public final Rent updateItem(final Long rentId, final RentItem newRentItem) {
-        var rentToUpdate = rentRepository.findById(rentId);
+        var rentToUpdate = rentRepository.findById(rentId)
+            .orElseThrow(ObjectNotFoundException::new);
         RentItem savedDeviceItem;
         RentItem rentItemToUpdate;
 
-        if (rentToUpdate.isEmpty()) {
-            throw new ObjectNotFoundException();
-        }
-
-        rentItemToUpdate = rentToUpdate.get().getRentItemOfScannable(newRentItem.getScannable());
+        rentItemToUpdate = rentToUpdate.getRentItemOfScannable(newRentItem.getScannable());
 
         if (newRentItem.getScannable().getClass() == Device.class && !checkIfAvailable(newRentItem, rentItemToUpdate)) {
             throw new NotAvailableQuantityException();
@@ -89,7 +73,7 @@ public class RentService {
 
         if (rentItemToUpdate != null) {
             if (newRentItem.getOutQuantity() == 0) {
-                rentToUpdate.get().getRentItems().remove(rentItemToUpdate);
+                rentToUpdate.getRentItems().remove(rentItemToUpdate);
                 rentItemRepository.delete(rentItemToUpdate);
             } else {
                 rentItemToUpdate.setOutQuantity(newRentItem.getOutQuantity());
@@ -102,11 +86,11 @@ public class RentService {
                 newRentItem.setAddedAt(new Date());
 
                 savedDeviceItem = rentItemRepository.save(newRentItem);
-                rentToUpdate.get().getRentItems().add(savedDeviceItem);
+                rentToUpdate.getRentItems().add(savedDeviceItem);
             }
         }
 
-        Rent saved = rentRepository.save(rentToUpdate.get());
+        Rent saved = rentRepository.save(rentToUpdate);
         log.info("Rent updated: {}", saved);
         return saved;
     }
@@ -118,144 +102,114 @@ public class RentService {
     }
 
     public final Rent update(final Rent rentRequest) {
-        var rentToUpdate = rentRepository.findById(rentRequest.getId());
+        var rentToUpdate = rentRepository.findById(rentRequest.getId())
+            .orElseThrow(ObjectNotFoundException::new);
 
-        if (rentToUpdate.isEmpty()) {
-            throw new ObjectNotFoundException();
-        }
+        rentToUpdate.setType(rentRequest.getType());
+        rentToUpdate.setDestination(rentRequest.getDestination());
+        rentToUpdate.setOutDate(rentRequest.getOutDate());
+        rentToUpdate.setExpBackDate(rentRequest.getExpBackDate());
+        rentToUpdate.setBackDate(rentRequest.getBackDate());
 
-        rentToUpdate.get().setType(rentRequest.getType());
-        rentToUpdate.get().setDestination(rentRequest.getDestination());
-        rentToUpdate.get().setOutDate(rentRequest.getOutDate());
-        rentToUpdate.get().setExpBackDate(rentRequest.getExpBackDate());
-        rentToUpdate.get().setBackDate(rentRequest.getBackDate());
-
-        Rent saved = rentRepository.save(rentToUpdate.get());
+        Rent saved = rentRepository.save(rentToUpdate);
         log.info("Rent updated: {}", saved);
         return saved;
     }
 
     public final Rent manageFinalization(final Rent rentRequest) {
-        var rentToUpdate = rentRepository.findById(rentRequest.getId());
+        var rentToUpdate = rentRepository.findById(rentRequest.getId())
+            .orElseThrow(ObjectNotFoundException::new);
 
-        if (rentToUpdate.isEmpty()) {
-            throw new ObjectNotFoundException();
-        }
+        rentToUpdate.setType(rentRequest.getType());
+        rentToUpdate.setDestination(rentRequest.getDestination());
+        rentToUpdate.setIssuer(rentRequest.getIssuer());
+        rentToUpdate.setOutDate(rentRequest.getOutDate());
+        rentToUpdate.setBackDate(rentRequest.getBackDate());
+        rentToUpdate.setIsClosed(rentRequest.getIsClosed());
 
-        rentToUpdate.get().setType(rentRequest.getType());
-        rentToUpdate.get().setDestination(rentRequest.getDestination());
-        rentToUpdate.get().setIssuer(rentRequest.getIssuer());
-        rentToUpdate.get().setOutDate(rentRequest.getOutDate());
-        rentToUpdate.get().setBackDate(rentRequest.getBackDate());
-        rentToUpdate.get().setIsClosed(rentRequest.getIsClosed());
-
-        Rent saved = rentRepository.save(rentToUpdate.get());
+        Rent saved = rentRepository.save(rentToUpdate);
         log.info("Rent updated with finalization: {}", saved);
         return saved;
     }
 
     public final Rent delete(final Rent rentRequest) {
-        Optional<Rent> foundRent = rentRepository.findById(rentRequest.getId());
+        Rent foundRent = rentRepository.findById(rentRequest.getId())
+            .orElseThrow(() => {
+                log.warn("Rent not found to delete: {}", rentRequest);
+                return new ObjectNotFoundException();
+            });
 
-        if (foundRent.isEmpty()) {
-            log.warn("Rent not found to delete: {}", rentRequest);
-            throw new ObjectNotFoundException();
-        }
-
-        foundRent.get().setDeletedData();
-        Rent saved = rentRepository.save(foundRent.get());
+        foundRent.setDeletedData();
+        Rent saved = rentRepository.save(foundRent);
 
         log.info("Rent deleted: {}", saved);
         return saved;
     }
 
     public final Rent undelete(final Rent rentRequest) {
-        Optional<Rent> foundRent = rentRepository.findById(rentRequest.getId());
+        Rent foundRent = rentRepository.findById(rentRequest.getId())
+            .orElseThrow(() => {
+                log.warn("Rent not found to restore: {}", rentRequest);
+                return new ObjectNotFoundException();
+            });
 
-        if (foundRent.isEmpty()) {
-            log.warn("Rent not found to restore: {}", rentRequest);
-            throw new ObjectNotFoundException();
-        }
-
-        foundRent.get().setUndeletedData();
-        Rent saved = rentRepository.save(foundRent.get());
+        foundRent.setUndeletedData();
+        Rent saved = rentRepository.save(foundRent);
 
         log.info("Rent restored: {}", saved);
         return saved;
     }
 
     public final Rent getById(final Long rentId) {
-        var foundRent = rentRepository.findById(rentId);
+        var foundRent = rentRepository.findById(rentId)
+            .orElseThrow(() => {
+                log.error("Rent not found with ID {}", rentId);
+                return new ObjectNotFoundException();
+            });
 
-        if (foundRent.isEmpty()) {
-            log.error("Rent not found with ID {}", rentId);
-            throw new ObjectNotFoundException();
-        }
-
-        log.info("Rent found: {}", foundRent.get());
-        return foundRent.get();
+        log.info("Rent found: {}", foundRent);
+        return foundRent;
     }
 
     public Optional<Rent> addCommentToRent(final Long rentId, final Comment commentToAdd) {
-        Optional<Rent> rentToAddTo = rentRepository.findById(rentId);
-
-        if (rentToAddTo.isEmpty()) {
-            log.info("Rent not found with id: {}", rentId);
-            return Optional.empty();
-        }
-
-        Comment savedComment = commentRepository.save(commentToAdd);
-
-        rentToAddTo.get().getComments().add(savedComment);
-
-        Rent updatedRent = rentRepository.save(rentToAddTo.get());
-        log.info("Comment added to rent: {}", updatedRent);
-
-        return Optional.of(updatedRent);
+        return rentRepository.findById(rentId)
+            .map(rent -> {
+                Comment savedComment = commentRepository.save(commentToAdd);
+                rent.getComments().add(savedComment);
+                Rent updatedRent = rentRepository.save(rent);
+                log.info("Comment added to rent: {}", updatedRent);
+                return updatedRent;
+            });
     }
 
     public Optional<Rent> removeCommentFromRent(final Long rentId, final Comment commentToRemove) {
-        Optional<Rent> rentToUpdate = rentRepository.findById(rentId);
-        Optional<Comment> commentFound = commentRepository.findById(commentToRemove.getId());
-
-        if (rentToUpdate.isEmpty()) {
-            log.info("Rent not found with id: {}", rentId);
-            return Optional.empty();
-        }
-
-        if (commentFound.isEmpty()) {
-            log.info("Comment not found with id: {}", commentToRemove.getId());
-            return Optional.empty();
-        }
-
-        rentToUpdate.get().getComments().remove(commentFound.get());
-        commentRepository.delete(commentFound.get());
-
-        Rent savedRent = rentRepository.save(rentToUpdate.get());
-
-        log.info("Comment successfully removed from rent: {}", savedRent);
-        return Optional.of(savedRent);
+        return rentRepository.findById(rentId)
+            .flatMap(rent -> commentRepository.findById(commentToRemove.getId())
+                .map(comment -> {
+                    rent.getComments().remove(comment);
+                    commentRepository.delete(comment);
+                    Rent savedRent = rentRepository.save(rent);
+                    log.info("Comment successfully removed from rent: {}", savedRent);
+                    return savedRent;
+                }));
     }
 
-    @SuppressWarnings({"checkstyle:InnerAssignment", "checkstyle:AvoidInlineConditionals"})
+    @SuppressWarnings({"checkstyle:AvoidInlineConditionals"})
     public final ResponseEntity<byte[]> getPdf(final Long rentId, final RentPdfRequest rentPdfRequest) throws IOException {
-        Rent rentToGenerate = rentRepository.findById(rentId).orElse(null);
-
-        if (rentToGenerate == null) {
-            log.error("Rent not found with ID {}", rentId);
-            throw new ObjectNotFoundException();
-        }
+        Rent rentToGenerate = rentRepository.findById(rentId)
+            .orElseThrow(() => {
+                log.error("Rent not found with ID {}", rentId);
+                return new ObjectNotFoundException();
+            });
 
         String fileName = "pdf/rent_" + rentToGenerate.getId();
 
-        Optional<GeneralData> foundData;
-        String groupName = (foundData = generalDataRepository.findById(GROUP_NAME_KEY)).isPresent()
-                ? foundData.get().getData() : "Budavári Schönherz Stúdió";
-        String groupLeaderName = (foundData = generalDataRepository.findById(GROUP_LEADER_NAME_KEY)).isPresent() ? foundData.get().getData() : "";
-        String firstSignerName = (foundData = generalDataRepository.findById(FIRST_SIGNER_NAME_KEY)).isPresent() ? foundData.get().getData() : "";
-        String firstSignerTitle = (foundData = generalDataRepository.findById(FIRST_SIGNER_TITLE_KEY)).isPresent() ? foundData.get().getData() : "";
-        String secondSignerName = (foundData = generalDataRepository.findById(SECOND_SIGNER_NAME_KEY)).isPresent() ? foundData.get().getData() : "";
-        String secondSignerTitle = (foundData = generalDataRepository.findById(SECOND_SIGNER_TITLE_KEY)).isPresent() ? foundData.get().getData() : "";
+        String groupName = getGeneralDataValue(generalDataProperties.groupNameKey(), "Budavári Schönherz Stúdió");
+        String groupLeaderName = getGeneralDataValue(generalDataProperties.groupLeaderNameKey(), "");
+        String firstSignerName = getGeneralDataValue(generalDataProperties.firstSignerNameKey(), "");
+        String firstSignerTitle = getGeneralDataValue(generalDataProperties.firstSignerTitleKey(), "");
+        String secondSignerName = getGeneralDataValue(generalDataProperties.secondSignerNameKey(), "");
+        String secondSignerTitle = getGeneralDataValue(generalDataProperties.secondSignerTitleKey(), "");
 
         RentPdfData rentPdfData = RentPdfData.builder()
                 .withTeamName(groupName)
@@ -300,5 +254,11 @@ public class RentService {
         headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
 
         return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
+    }
+
+    private String getGeneralDataValue(String key, String defaultValue) {
+        return generalDataRepository.findById(key)
+            .map(GeneralData::getData)
+            .orElse(defaultValue);
     }
 }

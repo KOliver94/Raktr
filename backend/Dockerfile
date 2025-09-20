@@ -8,7 +8,7 @@ WORKDIR /home/spring/app
 
 FROM jdk as build
 COPY ./gradlew ./
-COPY ./build.gradle ./
+COPY build.gradle.kts ./
 COPY ./gradle ./gradle
 
 RUN ./gradlew

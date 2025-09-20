@@ -1,20 +1,19 @@
 package hu.bsstudio.raktr.service;
 
 import hu.bsstudio.raktr.exception.ObjectConflictException;
+import hu.bsstudio.raktr.exception.ObjectNotFoundException;
 import hu.bsstudio.raktr.model.Category;
 import hu.bsstudio.raktr.model.Device;
 import hu.bsstudio.raktr.model.Location;
-import hu.bsstudio.raktr.model.Owner;
 import hu.bsstudio.raktr.repository.CategoryRepository;
 import hu.bsstudio.raktr.repository.DeviceRepository;
 import hu.bsstudio.raktr.repository.LocationRepository;
-
-import java.util.List;
-import java.util.Optional;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -26,28 +25,23 @@ public final class DeviceService {
     private final CategoryRepository categoryRepository;
     private final LocationRepository locationRepository;
 
-    @SuppressWarnings("checkstyle:AvoidInlineConditionals")
-    public Optional<Device> create(final Device deviceRequest) {
-        var foundDevice = deviceRequest.getId() == null ? Optional.empty() : deviceRepository.findById(deviceRequest.getId());
-
-        if (foundDevice.isEmpty()) {
-            checkCategoryAndLocation(deviceRequest);
-
-            deviceRequest.setIsDeleted(false);
-
-            if (deviceRequest.getOwner() != null) {
-                Optional<Owner> owner = ownerService.create(deviceRequest.getOwner());
-
-                deviceRequest.setOwner(owner.get());
-            }
-
-            var saved = deviceRepository.save(deviceRequest);
-            log.info("Device created: {}", deviceRequest);
-            return Optional.of(saved);
-        } else {
+    public Device create(final Device deviceRequest) {
+        if (deviceRequest.getId() != null && deviceRepository.existsById(deviceRequest.getId())) {
             log.info("Device failed to create, id conflict: {}", deviceRequest);
-            return Optional.empty();
+            throw new ObjectConflictException();
         }
+
+        checkCategoryAndLocation(deviceRequest);
+        deviceRequest.setIsDeleted(false);
+
+        if (deviceRequest.getOwner() != null) {
+            ownerService.create(deviceRequest.getOwner())
+                    .ifPresent(deviceRequest::setOwner);
+        }
+
+        var saved = deviceRepository.save(deviceRequest);
+        log.info("Device created: {}", saved);
+        return saved;
     }
 
     public List<Device> getAll() {
@@ -63,132 +57,117 @@ public final class DeviceService {
     }
 
     public Optional<Device> delete(final Device deviceRequest) {
-        var foundDevice = deviceRepository.findById(deviceRequest.getId());
-
-        if (foundDevice.isPresent()) {
-            foundDevice.get().setDeletedData();
-
-            deviceRepository.save(deviceRequest);
-            log.info("Deleted device from DB: {}", deviceRequest);
-        } else {
+        Optional<Device> foundDevice = deviceRepository.findById(deviceRequest.getId());
+        foundDevice.ifPresent(device -> {
+            device.setDeletedData();
+            deviceRepository.save(device);
+            log.info("Deleted device from DB: {}", device);
+        });
+        if (foundDevice.isEmpty()) {
             log.info("Device to delete not found in DB: {}", deviceRequest);
         }
-
         return foundDevice;
     }
 
     public Optional<Device> unDelete(final Device deviceRequest) {
-        var foundDevice = deviceRepository.findById(deviceRequest.getId());
+        Optional<Device> foundDevice = deviceRepository.findById(deviceRequest.getId());
 
-        if (foundDevice.isPresent()) {
-            foundDevice.get().setUndeletedData();
+        foundDevice.ifPresent(device -> {
+            device.setUndeletedData();
 
-            Optional<Device> byBarcode = deviceRepository.findByBarcode(foundDevice.get().getBarcode());
-            Optional<Device> byTextIdentifier = deviceRepository.findByTextIdentifier(foundDevice.get().getTextIdentifier());
+            Optional<Device> byBarcode = deviceRepository.findByBarcode(device.getBarcode());
+            Optional<Device> byTextIdentifier = deviceRepository.findByTextIdentifier(device.getTextIdentifier());
 
-            if (byBarcode.isPresent() && !byBarcode.get().getId().equals(foundDevice.get().getId()) ||
-                    byTextIdentifier.isPresent() && !byTextIdentifier.get().getId().equals(foundDevice.get().getId())) {
+            if (byBarcode.isPresent() && !byBarcode.get().getId().equals(device.getId()) ||
+                    byTextIdentifier.isPresent() && !byTextIdentifier.get().getId().equals(device.getId())) {
                 log.warn("Original device barcode ({}) or textID ({}) taken",
-                        foundDevice.get().getBarcode(), foundDevice.get().getTextIdentifier());
+                        device.getBarcode(), device.getTextIdentifier());
                 throw new ObjectConflictException();
             }
 
-            deviceRepository.save(deviceRequest);
-            log.info("Deleted device from DB: {}", deviceRequest);
-        } else {
-            log.warn("Device to delete not found in DB: {}", deviceRequest);
+            deviceRepository.save(device);
+            log.info("Restored device in DB: {}", device);
+        });
+
+        if (foundDevice.isEmpty()) {
+            log.warn("Device to restore not found in DB: {}", deviceRequest);
         }
 
         return foundDevice;
     }
 
-    public Optional<Device> update(final Device deviceRequest) {
+    public Device update(final Device deviceRequest) {
         checkCategoryAndLocation(deviceRequest);
 
-        var deviceToUpdate = deviceRepository.findById(deviceRequest.getId());
-
-        if (deviceToUpdate.isEmpty()) {
-            log.warn("Device not found in db to update, creating it instead: {}", deviceRequest);
-            deviceToUpdate = Optional.of(new Device());
-
-            deviceToUpdate.get().setIsDeleted(false);
-
-            if(deviceRequest.getId() != null) {
-                deviceToUpdate.get().setId(deviceRequest.getId());
-            }
-        }
+        Device deviceToUpdate = deviceRepository.findById(deviceRequest.getId())
+                .orElseThrow(() -> {
+                    log.warn("Device not found in db to update: {}", deviceRequest);
+                    return new ObjectNotFoundException();
+                });
 
         if (deviceRequest.getOwner() != null) {
-            Optional<Owner> owner = ownerService.create(deviceRequest.getOwner());
-            deviceToUpdate.get().setOwner(owner.get());
+            ownerService.create(deviceRequest.getOwner())
+                    .ifPresent(deviceToUpdate::setOwner);
         }
 
-        deviceToUpdate.get().setBarcode(deviceRequest.getBarcode());
-        deviceToUpdate.get().setIsPublicRentable(deviceRequest.getIsPublicRentable());
-        deviceToUpdate.get().setTextIdentifier(deviceRequest.getTextIdentifier());
-        deviceToUpdate.get().setName(deviceRequest.getName());
-        deviceToUpdate.get().setMaker(deviceRequest.getMaker());
-        deviceToUpdate.get().setType(deviceRequest.getType());
-        deviceToUpdate.get().setSerial(deviceRequest.getSerial());
-        deviceToUpdate.get().setStatus(deviceRequest.getStatus());
-        deviceToUpdate.get().setValue(deviceRequest.getValue());
-        deviceToUpdate.get().setWeight(deviceRequest.getWeight());
-        deviceToUpdate.get().setQuantity(deviceRequest.getQuantity());
-        deviceToUpdate.get().setCategory(deviceRequest.getCategory());
-        deviceToUpdate.get().setLocation(deviceRequest.getLocation());
-        deviceToUpdate.get().setAquiredFrom(deviceRequest.getAquiredFrom());
-        deviceToUpdate.get().setComment(deviceRequest.getComment());
-        deviceToUpdate.get().setDateOfAcquisition(deviceRequest.getDateOfAcquisition());
-        deviceToUpdate.get().setEndOfWarranty(deviceRequest.getEndOfWarranty());
+        deviceToUpdate.setBarcode(deviceRequest.getBarcode());
+        deviceToUpdate.setIsPublicRentable(deviceRequest.getIsPublicRentable());
+        deviceToUpdate.setTextIdentifier(deviceRequest.getTextIdentifier());
+        deviceToUpdate.setName(deviceRequest.getName());
+        deviceToUpdate.setMaker(deviceRequest.getMaker());
+        deviceToUpdate.setType(deviceRequest.getType());
+        deviceToUpdate.setSerial(deviceRequest.getSerial());
+        deviceToUpdate.setStatus(deviceRequest.getStatus());
+        deviceToUpdate.setValue(deviceRequest.getValue());
+        deviceToUpdate.setWeight(deviceRequest.getWeight());
+        deviceToUpdate.setQuantity(deviceRequest.getQuantity());
+        deviceToUpdate.setCategory(deviceRequest.getCategory());
+        deviceToUpdate.setLocation(deviceRequest.getLocation());
+        deviceToUpdate.setAquiredFrom(deviceRequest.getAquiredFrom());
+        deviceToUpdate.setComment(deviceRequest.getComment());
+        deviceToUpdate.setDateOfAcquisition(deviceRequest.getDateOfAcquisition());
+        deviceToUpdate.setEndOfWarranty(deviceRequest.getEndOfWarranty());
 
-        Device saved = deviceRepository.save(deviceToUpdate.get());
+        Device saved = deviceRepository.save(deviceToUpdate);
         log.info("Device updated in DB: {}", saved);
-        return Optional.of(saved);
+        return saved;
     }
 
-    public Optional<Device> getById(final Long id) {
-        Optional<Device> foundDevice = deviceRepository.findById(id);
+    public Device getById(final Long id) {
+        Device foundDevice = deviceRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.error("Device not found with id: {}", id);
+                    return new ObjectNotFoundException();
+                });
 
-        if (foundDevice.isEmpty()) {
-            log.error("Device not found with id: {}", id);
-            return foundDevice;
-        }
-
-        log.info("Device with id {} found: {}", id, foundDevice.get());
+        log.info("Device with id {} found: {}", id, foundDevice);
         return foundDevice;
     }
 
     private void checkCategoryAndLocation(final Device deviceRequest) {
-        var category = categoryRepository.findByName(deviceRequest.getCategory().getName()).orElse(null);
-
-        if (category == null) {
-            category = categoryRepository.save(Category.builder()
-                    .name(deviceRequest.getCategory().getName())
-                    .build());
-        }
+        var category = categoryRepository.findByName(deviceRequest.getCategory().getName())
+                .orElseGet(() -> categoryRepository.save(Category.builder()
+                        .name(deviceRequest.getCategory().getName())
+                        .build()));
         deviceRequest.setCategory(category);
 
-        Location location = locationRepository.findByName(deviceRequest.getLocation().getName()).orElse(null);
-
-        if (location == null) {
-            location = locationRepository.save(Location.builder()
-                    .name(deviceRequest.getLocation().getName())
-                    .build());
-        }
+        var location = locationRepository.findByName(deviceRequest.getLocation().getName())
+                .orElseGet(() -> locationRepository.save(Location.builder()
+                        .name(deviceRequest.getLocation().getName())
+                        .build()));
         deviceRequest.setLocation(location);
     }
 
     public Optional<Device> deleteById(final Long id) {
         Optional<Device> deviceToDelete = deviceRepository.findById(id);
-
-        if (deviceToDelete.isEmpty()) {
-            log.info("Device not found to delete with id: {}", id);
-            return deviceToDelete;
-        } else {
-            deviceRepository.deleteById(id);
-            log.info("Device by id deleted: {}", deviceToDelete.get());
-            return deviceToDelete;
-        }
+        deviceToDelete.ifPresentOrElse(
+                device -> {
+                    deviceRepository.deleteById(id);
+                    log.info("Device by id deleted: {}", device);
+                },
+                () -> log.info("Device not found to delete with id: {}", id)
+        );
+        return deviceToDelete;
     }
 
     public List<String> getAllMakers() {
